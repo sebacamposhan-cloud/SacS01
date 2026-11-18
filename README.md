@@ -14,6 +14,10 @@ Abre [PlantaControl local](http://127.0.0.1:8000/) en el navegador. La página d
 
 ## Publicar en GitHub Pages
 
-En el repositorio, elige **Settings → Pages → Build and deployment → Source → GitHub Actions**. Luego ejecuta **Publicar PlantaControl en GitHub Pages** en la pestaña **Actions**. GitHub indicará la URL publicada en el despliegue. Si el repositorio es privado, la disponibilidad de Pages depende del plan de GitHub.
+1. Abre [Settings → Pages del repositorio SacS01](https://github.com/sebacamposhan-cloud/SacS01/settings/pages) con la cuenta que administra el repositorio.
+2. En **Build and deployment**, selecciona **Deploy from a branch** como fuente.
+3. En **Branch**, elige **main** y **/docs**, y pulsa **Save**.
+
+GitHub publicará automáticamente los archivos de `docs/` al guardar y cuando se actualice `main`. Cuando aparezca **Visit site** en la configuración del repositorio, abre [PlantaControl](https://sebacamposhan-cloud.github.io/SacS01/).
 
 La lógica, los datos, los gráficos, la interfaz dinámica y los CSV están escritos en Python. HTML y CSS definen la estructura inicial y el estilo. Un archivo JavaScript pequeño inicia el intérprete. No se requiere instalar paquetes Python, crear cuentas de usuario en el panel ni operar un servidor de aplicación o una base de datos.
