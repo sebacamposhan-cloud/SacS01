@@ -2,6 +2,12 @@
 
 Panel del taller de control de avance de obra. Incluye 405 registros de demostración para 15 departamentos y 27 partidas. Permite cambiar la fecha de control, consultar el avance real y programado, filtrar partidas por departamento y descargar detalle, resumen y matriz en CSV.
 
+## Plano interactivo
+
+El visor representa el piso 4 del plano de tabiques D13f (revisión A). Los departamentos 401–415 corresponden a los registros 01–15. Selecciona una zona con el ratón o con Tab y Enter para consultar el avance a la fecha de control y las 27 partidas del departamento. Puedes ampliar y desplazar el plano.
+
+La base gráfica es un recorte del PDF de referencia. Las áreas seleccionables fueron trazadas sobre el plano y son zonas de consulta, sin validez como medición CAD.
+
 ## Abrir desde un PC
 
 Desde la raíz del repositorio, con Python 3 instalado:

@@ -2,7 +2,7 @@
 async function iniciar() {
   try {
     const python = await loadPyodide();
-    for (const archivo of ["datos.py", "control.py", "panel.py"]) {
+    for (const archivo of ["datos.py", "control.py", "plano.py", "panel.py"]) {
       const respuesta = await fetch(archivo);
       if (!respuesta.ok) throw new Error(`${archivo}: ${respuesta.status}`);
       python.FS.writeFile(archivo, await respuesta.text());
