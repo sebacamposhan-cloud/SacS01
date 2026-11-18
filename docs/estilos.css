@@ -50,11 +50,38 @@ summary { cursor: pointer; font-weight: 600; }
 .terminado { --estado: #147456; }
 .con-atrasos { --estado: #9b4d15; }
 .unidad polygon { fill: var(--estado); fill-opacity: .13; stroke: var(--estado); stroke-width: 1.4; }
-.unidad:hover polygon, .unidad:focus-visible polygon, .unidad[aria-pressed="true"] polygon { fill-opacity: .34; stroke-width: 2.8; }
-.unidad[aria-pressed="true"] polygon { stroke: #102c42; }
+.unidad:hover polygon, .unidad:focus-visible polygon { fill-opacity: .34; stroke-width: 2.8; }
 .unidad rect { fill: var(--estado); }
 .unidad text { fill: white; font-size: 13px; font-weight: 700; pointer-events: none; }
 .plano-leyenda { display: flex; flex-wrap: wrap; gap: .4rem 1rem; list-style: none; padding: 0; margin: .7rem 0; font-size: .88rem; }
 .plano-leyenda li::before { content: ""; display: inline-block; margin-right: .35rem; width: .72rem; height: .72rem; border-radius: 50%; background: var(--estado); }
-#plano-seleccion { margin: .55rem 0 0; background: #edf5f2; padding: .55rem .75rem; border-radius: 7px; }
-#plano-seleccion a { color: #125447; font-weight: 650; }
+.inicio { max-width: 560px; margin: clamp(1rem, 5vh, 3rem) auto 0; }
+.inicio h1 { margin-bottom: 1.25rem; }
+.inicio button { display: flex; width: 100%; justify-content: space-between; margin: .65rem 0;
+  align-items: center; padding: .85rem 1.15rem; font-size: 1.2rem; font-weight: 650; }
+.inicio button, .secundario, .vistas button { background: white; color: #163b35; border-color: #b4c9c1; }
+.inicio button:hover, .secundario:hover, .vistas button:hover { background: #e6f1ed; border-color: #126452; }
+.inicio button span { font-size: 1.55rem; color: #126452; }
+.titulo-vista { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem 1rem; margin-bottom: 1rem; }
+.controles-partidas, .vistas { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.vistas { margin-top: 1rem; }
+.vistas button[aria-pressed="true"] { color: white; background: #126452; border-color: #126452; }
+.enlace { color: #125447; background: transparent; border: 0; padding: .15rem .35rem; text-decoration: underline; }
+.enlace:hover { background: #d6eae3; }
+.kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: .75rem; }
+.kanban section { margin: 0; padding: .8rem; background: #f4f7f6; }
+.kanban ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.tarjeta-partida { display: grid; gap: .2rem; padding: .65rem; background: white; border: 1px solid #d6e3dd; border-radius: 7px; }
+.tarjeta-partida span { font-size: .85rem; }
+.marca-atraso { color: #873b11; font-weight: 650; }
+.gantt { min-width: 850px; }
+.gantt th:first-child { width: 22%; }
+.gantt th:last-child { width: 62%; }
+.gantt td:nth-child(3) { white-space: nowrap; }
+.eje-gantt, .pista-gantt { position: relative; min-height: 1.7rem; }
+.eje-gantt span { position: absolute; font-size: .75rem; white-space: nowrap; }
+.intervalo { position: absolute; top: .45rem; height: .8rem; min-width: 2px; background: #82a6bd; border-radius: .2rem; }
+.linea-corte { position: absolute; top: -.45rem; bottom: -.45rem; border-left: 2px dashed #72511d; pointer-events: none; }
+.leyenda-gantt { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .9rem; }
+.sin-programacion { position: relative; z-index: 1; background: white; color: #486660; padding-right: .35rem; }
+details > .tabla { margin-top: .75rem; }

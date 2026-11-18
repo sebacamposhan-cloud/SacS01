@@ -8,6 +8,13 @@ El visor representa el piso 4 del plano de tabiques D13f (revisión A). Los depa
 
 La base gráfica es un recorte del PDF de referencia. Las áreas seleccionables fueron trazadas sobre el plano y son zonas de consulta, sin validez como medición CAD.
 
+## Continuar el desarrollo
+
+- `docs/index.html` y `docs/inicio.js` cargan Pyodide y llaman a `panel.iniciar()`.
+- `docs/panel.py` contiene la navegación, el avance del piso, la lista de partidas, Kanban, Gantt y las exportaciones. `docs/plano.py` conserva el plano y las zonas pulsables.
+- `docs/control.py` calcula avance y atrasos a partir del historial. La interfaz reutiliza ese resultado entre vistas.
+- En el navegador, verifica **Plano → 407 → 27 partidas → Volver al plano** y **Avance → departamento atrasado → Kanban → Carta Gantt**. Los botones de vista comparten departamento, fecha y filtro. Las descargas están en **Avance → Informes y CSV**.
+
 ## Abrir desde un PC
 
 Desde la raíz del repositorio, con Python 3 instalado:
