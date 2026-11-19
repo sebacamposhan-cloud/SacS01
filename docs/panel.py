@@ -1,5 +1,6 @@
 """Interfaz de PlantaControl ejecutada por Python en el navegador."""
 
+from asyncio import ensure_future
 from collections import Counter
 import csv
 from datetime import timedelta
@@ -8,12 +9,13 @@ from html import escape
 from io import StringIO
 from statistics import mean
 from urllib.parse import quote
+from uuid import uuid4
 
 from control import FECHA_INICIAL, PARTIDAS, ULTIMA_MEDICION, analizar, fecha_valida
+from mediciones import HistorialMediciones
 from plano import visor_plano
 
 _callbacks = []
-datos_a_fecha = lru_cache(maxsize=16)(analizar)
 VISTAS = {'lista': 'Lista', 'kanban': 'Kanban', 'gantt': 'Carta Gantt'}
 APARTADOS = {'plano': 'Plano', 'avance': 'Avance', 'partidas': 'Partidas', 'informes': 'Informes y CSV'}
 
@@ -221,9 +223,9 @@ def gantt(filas, corte):
     '''
 
 
-def iniciar():
+async def iniciar():
     from js import Object, document, window
-    from pyodide.ffi import create_proxy
+    from pyodide.ffi import JsException, create_proxy
 
     app = document.getElementById('app')
     app.innerHTML = '<div id="pantalla"></div><p id="mensaje" role="status"></p>'
@@ -238,6 +240,130 @@ def iniciar():
     posicion_pagina_plano = (0, 0)
     posicion_avance = (0, 0)
     unidad_origen = ''
+    unidad_plano = ''
+    numero_partida = 1
+    historial = HistorialMediciones()
+    pendiente = None
+
+    @lru_cache(maxsize=16)
+    def datos_a_fecha(fecha):
+        return analizar(fecha, historial.registros)
+
+    def ultima_medicion():
+        ultima_registrada = max((r['fecha'] for r in historial.registros), default=ULTIMA_MEDICION)
+        return max(ULTIMA_MEDICION, ultima_registrada)
+
+    async def recargar_historial():
+        anteriores = historial.registros
+        await historial.cargar()
+        if historial.registros != anteriores:
+            datos_a_fecha.cache_clear()
+
+    def informar(mensaje):
+        document.getElementById('mensaje').textContent = mensaje
+
+    def registrar_en_plano():
+        panel = document.getElementById('registro-plano')
+        for zona in pantalla.querySelectorAll('.unidad'):
+            activa = zona.getAttribute('data-depto') == unidad_plano
+            zona.setAttribute('aria-expanded', str(activa).lower())
+        panel.hidden = not unidad_plano
+        if not unidad_plano:
+            panel.innerHTML = ''
+            return
+        detalle, _ = datos_a_fecha(corte.isoformat())
+        filas = [p for p in detalle if p['Departamento'] == unidad_plano]
+        opciones = ''.join(
+            f'<option value="{p["Nº partida"]}">{texto(p["Partida"])}</option>'
+            for p in filas
+        )
+        modo = 'Historial compartido' if historial.compartido else 'Guardado en este navegador'
+        panel.innerHTML = f'''
+          <div class="registro-titulo">
+            <h2>Departamento {numero_depto(unidad_plano)}</h2>
+            <button type="button" class="secundario" data-cerrar-registro aria-label="Cerrar registro">×</button>
+          </div>
+          <form id="medicion" aria-label="Registrar avance">
+            <h3>Registrar avance</h3>
+            <small>Fecha de medición · {corte:%d/%m/%Y} · {modo}</small>
+            <label for="partida-registro">Partida</label>
+            <select id="partida-registro">{opciones}</select>
+            <p id="avance-registrado"></p>
+            <label for="avance-registro">Nuevo avance (%)</label>
+            <input id="avance-registro" type="number" min="0" max="100" step="any" required>
+            <label><input id="terminada-registro" type="checkbox"> Marcar como terminada</label>
+            <label for="nota-registro">Observaciones</label>
+            <textarea id="nota-registro" maxlength="500" rows="2"></textarea>
+            <button id="guardar-medicion" type="submit">Guardar medición</button>
+            <p id="estado-registro" role="status"></p>
+          </form>
+          <button type="button" class="enlace" data-ver-partidas>Ver las 27 partidas</button>
+        '''
+        document.getElementById('partida-registro').value = str(numero_partida)
+        cargar_partida()
+
+    def cargar_partida():
+        detalle, _ = datos_a_fecha(corte.isoformat())
+        partida = next(p for p in detalle if p['Departamento'] == unidad_plano
+                       and p['Nº partida'] == numero_partida)
+        avance = partida['Avance real (%)']
+        document.getElementById('avance-registro').value = str(avance)
+        document.getElementById('terminada-registro').checked = avance == 100
+        document.getElementById('nota-registro').value = partida['Observaciones']
+        document.getElementById('avance-registrado').textContent = f'Avance registrado · {avance:g} %'
+
+    def recordar_plano():
+        nonlocal posicion_plano, posicion_pagina_plano
+        visor = pantalla.querySelector('.plano-visor')
+        posicion_plano = (visor.scrollLeft, visor.scrollTop)
+        posicion_pagina_plano = (window.scrollX, window.scrollY)
+
+    async def guardar_medicion(formulario, datos):
+        nonlocal pendiente
+        estado = document.getElementById('estado-registro')
+        boton = document.getElementById('guardar-medicion')
+        boton.disabled = True
+        estado.textContent = 'Guardando…'
+        if pendiente is None or any(pendiente[campo] != valor for campo, valor in datos.items()):
+            pendiente = dict(datos, id=str(uuid4()))
+        medicion = pendiente
+        try:
+            await historial.guardar(medicion)
+        except (OSError, ValueError, JsException):
+            estado.textContent = 'No se pudo confirmar el guardado. Puedes volver a intentarlo.'
+            boton.disabled = False
+            return
+        pendiente = None
+        mensaje = 'Medición guardada.'
+        if historial.compartido:
+            try:
+                await recargar_historial()
+            except (OSError, ValueError, JsException):
+                if not any(r['id'] == medicion['id'] for r in historial.registros):
+                    historial.registros.append(medicion)
+                mensaje = 'Medición guardada. La sincronización del historial quedó pendiente.'
+        datos_a_fecha.cache_clear()
+        if formulario.isConnected:
+            recordar_plano()
+            mostrar()
+            window.scrollTo(*posicion_pagina_plano)
+            document.getElementById('estado-registro').textContent = mensaje
+            document.getElementById('guardar-medicion').focus(opciones_foco)
+        else:
+            informar(mensaje)
+
+    def enviar_medicion(event):
+        if document.getElementById('guardar-medicion').disabled:
+            return
+        datos = {
+            'departamento': unidad_plano,
+            'partida': numero_partida,
+            'fecha': corte.isoformat(),
+            'avance': float(document.getElementById('avance-registro').value),
+            'observaciones': document.getElementById('nota-registro').value.strip(),
+        }
+        ensure_future(guardar_medicion(event.target, datos))
+
 
     def ajustar_zoom():
         ancho = (100, 135, 180, 240)[zoom]
@@ -279,7 +405,7 @@ def iniciar():
         volver = {'plano': 'al plano', 'avance': 'a Avance', 'inicio': 'al inicio'}
         destino = origen if pagina == 'partidas' else 'avance' if pagina == 'informes' else 'inicio'
         aviso = ''
-        if pagina != 'plano' and corte.isoformat() > ULTIMA_MEDICION:
+        if pagina != 'plano' and corte.isoformat() > ultima_medicion():
             aviso = '<p class="aviso">El avance real corresponde a la última medición disponible.</p>'
         if pagina == 'plano':
             contenido = visor_plano(resumen)
@@ -317,13 +443,14 @@ def iniciar():
             <label for="fecha">Fecha de control</label>
             <input id="fecha" type="date" value="{corte.isoformat()}" required>
             <button id="actualizar" type="submit">Actualizar</button>
-            <small>Última medición disponible · {ULTIMA_MEDICION}</small>
+            <small>Última medición disponible · {ultima_medicion()}</small>
           </form>
           {aviso}{contenido}
         '''
         if pagina == 'plano':
             ajustar_zoom()
             document.querySelector('.plano-visor').scrollTo(*posicion_plano)
+            registrar_en_plano()
         elif pagina == 'partidas':
             document.getElementById('departamento').value = departamento
             document.getElementById('solo-atrasadas').checked = solo_atrasadas
@@ -348,50 +475,74 @@ def iniciar():
         else:
             window.scrollTo(0, 0)
 
+    async def cambiar_fecha(formulario, seleccion):
+        nonlocal corte
+        boton = document.getElementById('actualizar')
+        boton.disabled = True
+        aviso = ''
+        try:
+            await recargar_historial()
+        except (OSError, ValueError, JsException):
+            aviso = ' No se pudo sincronizar el historial.'
+        if formulario.isConnected:
+            if pagina == 'plano':
+                recordar_plano()
+            corte = seleccion
+            mostrar()
+            document.getElementById('actualizar').focus(opciones_foco)
+            informar(f'Resultados al {corte:%d-%m-%Y}.{aviso}')
+
     def actualizar(event):
-        nonlocal corte, posicion_plano
         event.preventDefault()
-        seleccion = fecha_valida(document.getElementById('fecha').value)
-        if seleccion is None:
+        if event.target.id == 'medicion':
+            enviar_medicion(event)
             return
-        if pagina == 'plano':
-            visor = document.querySelector('.plano-visor')
-            posicion_plano = (visor.scrollLeft, visor.scrollTop)
-        corte = seleccion
-        mostrar()
-        document.getElementById('actualizar').focus(opciones_foco)
-        document.getElementById('mensaje').textContent = f'Resultados al {corte:%d-%m-%Y}'
+        seleccion = fecha_valida(document.getElementById('fecha').value)
+        if seleccion is not None and not document.getElementById('actualizar').disabled:
+            ensure_future(cambiar_fecha(event.target, seleccion))
 
     def cambiar(event):
-        nonlocal departamento, solo_atrasadas
-        if event.target.id == 'departamento':
+        nonlocal departamento, solo_atrasadas, numero_partida
+        campo = event.target.id
+        if campo == 'partida-registro':
+            numero_partida = int(event.target.value)
+            cargar_partida()
+            return
+        if campo == 'terminada-registro':
+            if event.target.checked:
+                document.getElementById('avance-registro').value = '100'
+            elif document.getElementById('avance-registro').valueAsNumber == 100:
+                document.getElementById('avance-registro').value = ''
+            return
+        if campo == 'departamento':
             departamento = event.target.value
-        elif event.target.id == 'solo-atrasadas':
+        elif campo == 'solo-atrasadas':
             solo_atrasadas = event.target.checked
         else:
             return
         mostrar_partidas()
 
     def abrir_unidad(unidad):
-        nonlocal departamento, solo_atrasadas, posicion_plano, posicion_avance, unidad_origen
-        nonlocal posicion_pagina_plano
-        departamento = unidad.getAttribute('data-depto')
-        unidad_origen = departamento
-        solo_atrasadas = False
+        nonlocal departamento, solo_atrasadas, posicion_avance, unidad_origen
+        nonlocal unidad_plano, numero_partida
+        clave = unidad.getAttribute('data-depto')
         if pagina == 'plano':
-            visor = document.querySelector('.plano-visor')
-            posicion_plano = (visor.scrollLeft, visor.scrollTop)
-            posicion_pagina_plano = (window.scrollX, window.scrollY)
-        else:
-            posicion_avance = (window.scrollX, window.scrollY)
-            _, resumen = datos_a_fecha(corte.isoformat())
-            solo_atrasadas = any(p['Departamento'] == departamento and p['Partidas atrasadas']
-                                 for p in resumen)
+            unidad_plano, numero_partida = clave, 1
+            registrar_en_plano()
+            document.getElementById('partida-registro').focus()
+            return
+        departamento = unidad_origen = clave
+        posicion_avance = (window.scrollX, window.scrollY)
+        _, resumen = datos_a_fecha(corte.isoformat())
+        solo_atrasadas = any(p['Departamento'] == departamento and p['Partidas atrasadas']
+                             for p in resumen)
         navegar('partidas')
 
     def pulsar(event):
-        nonlocal vista, zoom, posicion_avance
-        control = event.target.closest('[data-ir], [data-vista], [data-depto], [data-zoom]')
+        nonlocal vista, zoom, posicion_avance, unidad_plano, departamento, unidad_origen, solo_atrasadas
+        control = event.target.closest(
+            '[data-ir], [data-vista], [data-depto], [data-zoom], [data-ver-partidas], [data-cerrar-registro]'
+        )
         if not control:
             return
         if control.hasAttribute('data-ir'):
@@ -401,6 +552,14 @@ def iniciar():
         elif control.hasAttribute('data-vista'):
             vista = control.getAttribute('data-vista')
             mostrar_partidas()
+        elif control.hasAttribute('data-ver-partidas'):
+            recordar_plano()
+            departamento = unidad_origen = unidad_plano
+            solo_atrasadas = False
+            unidad_plano = ''
+            navegar('partidas')
+        elif control.hasAttribute('data-cerrar-registro'):
+            cerrar_registro()
         elif control.hasAttribute('data-depto'):
             abrir_unidad(control)
         else:
@@ -408,15 +567,35 @@ def iniciar():
             zoom = max(0, min(3, zoom + paso)) if paso else 0
             ajustar_zoom()
 
+    def cerrar_registro():
+        nonlocal unidad_plano
+        anterior, unidad_plano = unidad_plano, ''
+        registrar_en_plano()
+        pantalla.querySelector(f'[data-depto="{anterior}"]').focus(opciones_foco)
+
+    def entrada(event):
+        if event.target.id == 'avance-registro':
+            document.getElementById('terminada-registro').checked = event.target.valueAsNumber == 100
+
     def teclado(event):
+        if event.key == 'Escape' and unidad_plano and pagina == 'plano':
+            cerrar_registro()
+            return
         unidad = event.target.closest('.unidad')
         if unidad and event.key in ('Enter', ' '):
             event.preventDefault()
             abrir_unidad(unidad)
 
     for evento, funcion in (('submit', actualizar), ('change', cambiar),
-                            ('click', pulsar), ('keydown', teclado)):
+                            ('click', pulsar), ('keydown', teclado), ('input', entrada)):
         callback = create_proxy(funcion)
         _callbacks.append(callback)
         pantalla.addEventListener(evento, callback)
-    mostrar()
+    try:
+        await recargar_historial()
+    except (OSError, ValueError, JsException):
+        mostrar()
+        informar('No se pudo cargar el historial de mediciones. Usa Actualizar para volver a intentarlo.')
+    else:
+        corte = fecha_valida(max(FECHA_INICIAL, ultima_medicion()))
+        mostrar()

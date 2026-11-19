@@ -80,16 +80,26 @@ def avances_a_fecha(corte):
         avances[(str(h['d']), int(h['i']))] = float(h['real'])
     return avances
 
-def analizar(fecha_corte='2026-11-12'):
+def analizar(fecha_corte='2026-11-12', mediciones=()):
     """Genera detalle por partida y resumen por departamento."""
     corte = fecha_valida(fecha_corte)
     if corte is None:
         raise ValueError('Fecha de control incorrecta: utiliza AAAA-MM-DD.')
     reales = avances_a_fecha(corte)
+    registradas = {}
+    for medicion in mediciones:
+        if medicion['fecha'] > fecha_corte:
+            continue
+        clave = (medicion['departamento'], medicion['partida'])
+        anterior = registradas.get(clave)
+        if anterior is None or medicion['fecha'] >= anterior['fecha']:
+            registradas[clave] = medicion
     filas = []
     for d in DEPARTAMENTOS:
         for i, e in enumerate(DATOS['entries'][d]):
-            real = reales.get((d, i), 0.0)
+            medicion = registradas.get((etiqueta_depto(d), i + 1))
+            real = float(medicion['avance']) if medicion else reales.get((d, i), 0.0)
+            nota = medicion['observaciones'] if medicion else e.get('note') or ''
             esperado = avance_esperado(e.get('start'), e.get('end'), corte)
             desviacion = None if esperado is None else round(real - esperado, 2)
             filas.append({
@@ -104,7 +114,7 @@ def analizar(fecha_corte='2026-11-12'):
                 'Desviación (pp)': desviacion,
                 'Días hábiles vencidos': dias_vencidos(e.get('start'),e.get('end'),corte,real),
                 'Estado': clasificar(real, esperado),
-                'Observaciones': e.get('note') or ''
+                'Observaciones': nota
             })
     resumen = []
     for indice, departamento in enumerate(DEPARTAMENTOS):

@@ -85,3 +85,18 @@ summary { cursor: pointer; font-weight: 600; }
 .leyenda-gantt { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .9rem; }
 .sin-programacion { position: relative; z-index: 1; background: white; color: #486660; padding-right: .35rem; }
 details > .tabla { margin-top: .75rem; }
+#plano { position: relative; }
+.unidad[aria-expanded="true"] polygon { fill-opacity: .34; stroke: #102c42; stroke-width: 2.8; }
+#registro-plano { position: absolute; top: 4.9rem; right: 1.25rem; z-index: 2;
+  width: min(23rem, calc(100% - 2.5rem)); background: white; border: 1px solid #b4c9c1;
+  border-radius: 10px; padding: .9rem; box-shadow: 0 8px 28px #16303025; box-sizing: border-box; }
+.registro-titulo { display: flex; justify-content: space-between; align-items: center; }
+.registro-titulo h2, #medicion h3, #medicion p { margin: 0; }
+#medicion { display: grid; gap: .35rem; border: 0; padding: .65rem 0 .35rem; }
+#medicion select, #medicion textarea { width: 100%; box-sizing: border-box; }
+#medicion textarea { font: inherit; border: 1px solid #b4c9c1; border-radius: 7px; padding: .42rem .7rem; resize: vertical; }
+#estado-registro:empty { display: none; }
+#guardar-medicion:disabled { opacity: .65; cursor: wait; }
+@media (max-width: 700px) {
+  #registro-plano { position: static; width: auto; margin-top: .8rem; box-shadow: none; }
+}

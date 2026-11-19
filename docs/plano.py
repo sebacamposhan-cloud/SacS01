@@ -34,7 +34,7 @@ def visor_plano(resumen):
         real = fila['Avance real (%)']
         estado = 'con-atrasos' if atrasadas else 'terminado' if real == 100 else 'en-curso'
         unidades.append(f'''
-          <g class="unidad {estado}" role="button" tabindex="0"
+          <g class="unidad {estado}" role="button" tabindex="0" aria-controls="registro-plano" aria-expanded="false"
              data-depto="{depto}" aria-label="Departamento {unidad}, {atrasadas} partidas atrasadas">
             <title>Depto. {unidad} · {real:g} % de avance · {atrasadas} atrasadas</title>
             <polygon points="{puntos}"/>
@@ -46,7 +46,7 @@ def visor_plano(resumen):
       <section id="plano" aria-labelledby="titulo-plano">
         <div class="plano-cabecera">
           <div><h2 id="titulo-plano">Plano interactivo · Piso 4</h2>
-            <p>Selecciona un departamento para ver sus 27 partidas.</p></div>
+            <p>Selecciona un departamento para registrar avance o consultar sus partidas.</p></div>
           <div class="plano-controles" role="group" aria-label="Zoom del plano">
             <button type="button" data-zoom="-1" aria-label="Alejar plano">−</button>
             <button type="button" data-zoom="0">Ajustar</button>
@@ -61,6 +61,7 @@ def visor_plano(resumen):
             {''.join(unidades)}
           </svg>
         </div>
+        <div id="registro-plano" hidden></div>
         <ul class="plano-leyenda" aria-label="Estados del plano">
           <li class="en-curso">Sin atrasos</li>
           <li class="con-atrasos">Con atrasos</li>
